@@ -1,0 +1,239 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id         String      @id @default(uuid())
+  clerkId    String      @unique
+  email      String      @unique
+  name       String?
+  imageUrl   String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  feedbacks  Feedback[]
+  interviews Interview[]
+
+  @@index([clerkId])
+}
+
+model Interview {
+  id                 String     @id @default(uuid())
+  userId             String
+  language           String
+  difficulty         String
+  duration           Int
+  status             String
+  problemTitle       String
+  problemDescription String
+  code               String
+  startedAt          DateTime?
+  endedAt            DateTime?
+  createdAt          DateTime   @default(now())
+  style              String     @default("standard")
+  outOfFrameCount    Int        @default(0)
+  tabSwitchCount     Int        @default(0)
+  multiplePeopleCount Int       @default(0)
+  jobRoleId          String?
+  errorLogs          ErrorLog[]
+  user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobRole            JobRole?   @relation(fields: [jobRoleId], references: [id], onDelete: SetNull)
+  messages           Message[]
+  report             Report?
+
+  @@index([userId])
+  @@index([jobRoleId])
+}
+
+model Message {
+  id          String    @id @default(uuid())
+  interviewId String
+  role        String
+  content     String
+  createdAt   DateTime  @default(now())
+  thinking    String?
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@index([interviewId])
+}
+
+model Report {
+  id                    String    @id @default(uuid())
+  interviewId           String    @unique
+  overallScore          Int
+  technicalScore        Int
+  communicationScore    Int
+  problemSolvingScore   Int
+  optimizationScore     Int
+  codeQualityScore      Int
+  strengths             Json
+  weaknesses            Json
+  suggestions           Json
+  summary               String
+  createdAt             DateTime  @default(now())
+  nextSteps             Json?
+  transcriptAnnotations Json?
+  isPublic              Boolean   @default(true)
+  estimatedLevel        String?
+  isSolved              Boolean   @default(false)
+  spaceComplexity       String?
+  timeComplexity        String?
+  recruiterVerdict      String?
+  recruiterNotes        Json?
+  skillScores           Json?
+  candidateRoadmap      Json?
+  interview             Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+}
+
+model Feedback {
+  id        String   @id @default(uuid())
+  userId    String
+  rating    Int
+  comment   String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model ErrorLog {
+  id          String    @id @default(uuid())
+  interviewId String
+  errorType   String
+  message     String
+  createdAt   DateTime  @default(now())
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@index([interviewId])
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model EventLog {
+  id          String   @id @default(uuid())
+  interviewId String?
+  userId      String?
+  eventType   String
+  details     Json?
+  createdAt   DateTime @default(now())
+
+  @@index([interviewId])
+  @@index([userId])
+  @@index([eventType])
+}
+
+model InterviewQuestion {
+  id             String           @id @default(uuid())
+  order          Int              @default(1)
+  title          String
+  stage          String           @default("approach")
+  category       String           @default("code_editor")
+  durationMinutes Int             @default(5)
+  autoSwitch     Boolean          @default(true)
+  allowAiSwitch  Boolean          @default(true)
+  options        Json?
+  correctOption  Int?
+  explanation    String?
+  promptText     String
+  audioUrl       String?
+  audioSource    String           @default("generated")
+  expectedRubric Json?
+  secondaryProbe String?
+  maxProbes      Int              @default(1)
+  evaluationType String           @default("rubric_scored") // "rubric_scored" | "subjective_recruiter"
+  skillTags      Json?            // ["React", "System Design", "Leadership"]
+  isActive       Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  jobRoleId      String?
+  jobRole        JobRole?         @relation(fields: [jobRoleId], references: [id], onDelete: Cascade)
+  evaluations    StepEvaluation[]
+
+  @@index([order])
+  @@index([stage])
+  @@index([category])
+  @@index([jobRoleId])
+}
+
+model JobRole {
+  id               String              @id @default(uuid())
+  title            String
+  slug             String              @unique
+  description      String?
+  department       String?             @default("Engineering")
+  level            String?             @default("Mid-Level")
+  mode             String              @default("dynamic") // "dynamic" | "hybrid"
+  hybridVoice      String?             @default("af_heart")
+  interviewerSkill String              @default("startup_pragmatist")
+  evaluatorSkill   String              @default("executive_committee")
+  targetSkills     String              @default("System Architecture, Big-O Complexity, Code Modularity, Ambition & Ownership")
+  isDefault        Boolean             @default(false)
+  isActive         Boolean             @default(true)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  questions        InterviewQuestion[]
+  interviews       Interview[]
+
+  @@index([slug])
+  @@index([isDefault])
+}
+
+model StepEvaluation {
+  id                  String            @id @default(uuid())
+  interviewId         String
+  questionId          String
+  candidateTranscript String            @db.Text
+  matchedConcepts     Json?
+  missedConcepts      Json?
+  probeCount          Int               @default(0)
+  score               Int               @default(0)
+  feedback            String?
+  createdAt           DateTime          @default(now())
+  question            InterviewQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([interviewId])
+  @@index([questionId])
+}
+
+model AdminNotification {
+  id        String   @id @default(uuid())
+  type      String   // "success" | "error" | "info"
+  title     String
+  message   String
+  action    String?  // e.g. "DATA_FETCHED", "SETTINGS_SAVED", "VOICE_GENERATED"
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([type])
+}
+
+model AiSkill {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  type        String   // "interviewer" | "evaluator"
+  category    String?  @default("General")
+  description String?
+  badge       String?  @default("Custom")
+  content     String   @db.Text
+  files       Json?    // Optional multi-file folder array: [{ name: string, content: string, size?: number }]
+  isBuiltIn   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([slug])
+  @@index([type])
+  @@index([isActive])
+}
+
+
